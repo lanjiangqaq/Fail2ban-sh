@@ -93,19 +93,18 @@ while true; do
 done
 echo
 
-# ---------- 4. bantime（小时结算） ----------
+# ---------- 4. bantime（小时结算，-1 表示永久封禁） ----------
 while true; do
-    read -rp "封禁时长 bantime，单位：小时 [默认 24]: " BANTIME_HOUR
+    read -rp "封禁时长 bantime，单位：小时，永久封禁请输入 -1 [默认 24]: " BANTIME_HOUR
     BANTIME_HOUR=${BANTIME_HOUR:-24}
-    if [[ "$BANTIME_HOUR" =~ ^[0-9]+$ ]] && (( BANTIME_HOUR >= 1 )); then
-        BANTIME=$(( BANTIME_HOUR * 3600 ))
-        break
-    else
-        echo "请输入大于等于 1 的整数（小时）。若需永久封禁，请输入 -1（脚本会自动识别）。"
-    fi
     if [[ "$BANTIME_HOUR" == "-1" ]]; then
         BANTIME=-1
         break
+    elif [[ "$BANTIME_HOUR" =~ ^[0-9]+$ ]] && (( BANTIME_HOUR >= 1 )); then
+        BANTIME=$(( BANTIME_HOUR * 3600 ))
+        break
+    else
+        echo "请输入大于等于 1 的整数（小时），或输入 -1 表示永久封禁。"
     fi
 done
 echo
