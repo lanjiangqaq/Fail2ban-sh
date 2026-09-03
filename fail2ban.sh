@@ -31,12 +31,12 @@ uninstall_fail2ban() {
 
     echo "[2/4] 卸载软件包及依赖..."
     if command -v apt-get >/dev/null 2>&1; then
-        apt-get purge -y fail2ban
-        apt-get autoremove -y
+        apt-get purge -y fail2ban || true
+        apt-get autoremove -y || true
     elif command -v dnf >/dev/null 2>&1; then
-        dnf remove -y fail2ban
+        dnf remove -y fail2ban || true
     elif command -v yum >/dev/null 2>&1; then
-        yum remove -y fail2ban
+        yum remove -y fail2ban || true
     fi
 
     echo "[3/4] 清理残留目录与配置..."
@@ -69,7 +69,8 @@ setup_fail2ban() {
     echo
 
     # ---------- 1. SSH 端口配置 ----------
-    CURRENT_PORT=$(grep -E '^\s*Port\s+[0-9]+' "$SSHD_CONFIG" 2>/dev/null | awk '{print $2}' | tail -1)
+    # 增加 || true 防止无匹配项时触发 set -e 导致脚本意外退出
+    CURRENT_PORT=$(grep -E '^\s*Port\s+[0-9]+' "$SSHD_CONFIG" 2>/dev/null | awk '{print $2}' | tail -1 || true)
     CURRENT_PORT=${CURRENT_PORT:-22}
 
     read -rp "是否修改 SSH 端口？当前端口为 ${CURRENT_PORT}。[y/N]: " CHANGE_PORT
@@ -223,7 +224,11 @@ setup_fail2ban() {
     echo "===================================="
     echo "部署完成，当前服务状态："
     echo "===================================="
-    systemctl is-active fail2ban && echo "fail2ban 服务状态：运行中" || echo "fail2ban 服务状态：未正常运行"
+    if systemctl is-active --quiet fail2ban; then
+        echo "fail2ban 服务状态：运行中"
+    else
+        echo "fail2ban 服务状态：未正常运行"
+    fi
     echo
     fail2ban-client status sshd 2>/dev/null || echo "无法获取 sshd jail 状态，请检查 /var/log/fail2ban.log"
 }
