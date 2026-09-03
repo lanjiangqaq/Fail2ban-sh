@@ -2,7 +2,9 @@
 #
 # fail2ban-setup.sh — fail2ban sshd jail 配置与卸载脚本
 #
-set -euo pipefail
+
+# 移除严苛的自动退出机制，避免命令未匹配时引发静默崩溃
+# 仅保留基础的权限验证
 
 if [[ $EUID -ne 0 ]]; then
     echo "错误：请使用 root 权限运行此脚本（例如: sudo bash $0）" >&2
@@ -31,12 +33,12 @@ uninstall_fail2ban() {
 
     echo "[2/4] 卸载软件包及依赖..."
     if command -v apt-get >/dev/null 2>&1; then
-        apt-get purge -y fail2ban || true
-        apt-get autoremove -y || true
+        apt-get purge -y fail2ban
+        apt-get autoremove -y
     elif command -v dnf >/dev/null 2>&1; then
-        dnf remove -y fail2ban || true
+        dnf remove -y fail2ban
     elif command -v yum >/dev/null 2>&1; then
-        yum remove -y fail2ban || true
+        yum remove -y fail2ban
     fi
 
     echo "[3/4] 清理残留目录与配置..."
@@ -68,10 +70,16 @@ setup_fail2ban() {
     fi
     echo
 
-    # ---------- 1. SSH 端口配置 ----------
-    # 增加 || true 防止无匹配项时触发 set -e 导致脚本意外退出
-    CURRENT_PORT=$(grep -E '^\s*Port\s+[0-9]+' "$SSHD_CONFIG" 2>/dev/null | awk '{print $2}' | tail -1 || true)
-    CURRENT_PORT=${CURRENT_PORT:-22}
+    # ---------- 1. 安全读取 SSH 端口配置 ----------
+    CURRENT_PORT=""
+    if [[ -f "$SSHD_CONFIG" ]]; then
+        CURRENT_PORT=$(grep -E '^\s*Port\s+[0-9]+' "$SSHD_CONFIG" 2>/dev/null | tail -n 1 | awk '{print $2}')
+    fi
+    
+    # 如果未检测到或检测结果不是纯数字，则默认使用 22
+    if [[ -z "$CURRENT_PORT" || ! "$CURRENT_PORT" =~ ^[0-9]+$ ]]; then
+        CURRENT_PORT=22
+    fi
 
     read -rp "是否修改 SSH 端口？当前端口为 ${CURRENT_PORT}。[y/N]: " CHANGE_PORT
     CHANGE_PORT=${CHANGE_PORT:-N}
@@ -214,10 +222,10 @@ setup_fail2ban() {
     # ---------- 重启对应服务 ----------
     if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
         echo "[SSH] 正在重启 SSH 守护进程以应用新端口..."
-        systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || echo "[警告] SSH 服务重启失败，请检查服务状态。"
+        systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || echo "[警告] SSH 服务重启失败，请手动检查服务状态。"
     fi
 
-    systemctl restart fail2ban
+    systemctl restart fail2ban || echo "[警告] fail2ban 重启出现问题，请检查。"
     sleep 1
 
     echo
